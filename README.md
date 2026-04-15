@@ -4,21 +4,28 @@ Standalone admin dashboard for [ai-realtime-quant-engine](https://github.com/Bal
 
 ## Stack
 
-- Vanilla HTML5
-- Tailwind CSS (CDN)
-- Vanilla ES Modules
+- React 19 + TypeScript
+- Vite
+- Tailwind CSS v3
+- React Router
+- Lucide React (icons)
+- Recharts (charts, reserved)
 
 ## Quick Start
 
-Open `index.html` directly in a browser, or serve it with any static file server:
-
 ```bash
-npx serve .
+npm install
+npm run dev
 ```
 
-Then open `http://localhost:3001` (or whatever port the server uses).
+Then open `http://localhost:5173`.
 
 The dashboard expects the quant engine API to be available at `http://localhost:3000`.
+You can override this with:
+
+```bash
+VITE_API_BASE_URL=http://your-api-url npm run dev
+```
 
 ## Pages
 
@@ -32,6 +39,14 @@ The dashboard expects the quant engine API to be available at `http://localhost:
 ## Authentication
 
 The admin UI asks for a control token on first load. The token is stored in `sessionStorage` and sent as the `x-control-token` header on every API call.
+
+## Build
+
+```bash
+npm run build
+```
+
+Static files will be output to `dist/`.
 
 ## License
 

@@ -1,10 +1,10 @@
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : ''
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : '')
 
 function getToken() {
   return sessionStorage.getItem('controlToken') || ''
 }
 
-export function setToken(token) {
+export function setToken(token: string) {
   sessionStorage.setItem('controlToken', token)
 }
 
@@ -16,7 +16,7 @@ export function clearToken() {
   sessionStorage.removeItem('controlToken')
 }
 
-export async function apiGet(path) {
+export async function apiGet(path: string) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       'x-control-token': getToken()
@@ -34,7 +34,7 @@ export async function apiGet(path) {
   return data
 }
 
-export async function apiPost(path, payload) {
+export async function apiPost(path: string, payload: unknown) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: {
