@@ -3,19 +3,28 @@ import { apiGet, apiPost } from '../lib/api'
 import { usePolling } from '../hooks/usePolling'
 import { DataTable } from '../components/DataTable'
 import { showToast } from '../components/ToastContainer'
-import { fmtNumber, fmtUsd, badgeClass } from '../lib/utils'
+import { fmtNumber, fmtUsd, fmtDateTime, badgeClass } from '../lib/utils'
 
 export function AccountsPage() {
   const [account, setAccount] = useState<any>(null)
   const [stream, setStream] = useState<any>(null)
+  const [tradingRules, setTradingRules] = useState<any>(null)
+  const [streamOrders, setStreamOrders] = useState<any[]>([])
+  const [streamAccounts, setStreamAccounts] = useState<any[]>([])
 
   usePolling(async () => {
-    const [aRes, sRes] = await Promise.all([
+    const [aRes, sRes, tRes, oRes, acRes] = await Promise.all([
       apiGet('/api/accounts/binance'),
-      apiGet('/api/accounts/user-stream/status')
+      apiGet('/api/accounts/user-stream/status'),
+      apiGet('/api/accounts/binance/trading-rules'),
+      apiGet('/api/accounts/user-stream/orders'),
+      apiGet('/api/accounts/user-stream/accounts')
     ])
     setAccount(aRes.data)
     setStream(sRes.data)
+    setTradingRules(tRes.data)
+    setStreamOrders(oRes.data || [])
+    setStreamAccounts(acRes.data || [])
   }, 5000)
 
   const handleStart = async () => {
@@ -86,7 +95,26 @@ export function AccountsPage() {
         </div>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">Trading Rules</h3>
+        <div className="text-xs text-slate-400 mb-2">
+          Symbols: {tradingRules?.symbols?.length || 0}
+        </div>
+        <DataTable
+          columns={[
+            { label: 'Symbol', key: 'symbol' },
+            { label: 'Status', key: 'status' },
+            { label: 'Min Qty', key: 'minQty', align: 'right', render: (r: any) => fmtNumber(r.minQty, 6) },
+            { label: 'Max Qty', key: 'maxQty', align: 'right', render: (r: any) => fmtNumber(r.maxQty, 4) },
+            { label: 'Step', key: 'stepSize', align: 'right', render: (r: any) => fmtNumber(r.stepSize, 6) },
+            { label: 'Min Notional', key: 'minNotional', align: 'right', render: (r: any) => fmtUsd(r.minNotional) }
+          ]}
+          rows={tradingRules?.symbols?.slice(0, 20) || []}
+          emptyText="No trading rules"
+        />
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
         <h3 className="text-sm font-medium text-slate-300 mb-3">User Stream</h3>
         <div className="flex items-center gap-2 mb-3">
           <button onClick={handleStart} className="px-3 py-1.5 rounded text-sm bg-emerald-600 hover:bg-emerald-500 text-white">Start</button>
@@ -131,6 +159,34 @@ export function AccountsPage() {
             />
           </div>
         )}
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">User Stream Orders</h3>
+        <DataTable
+          columns={[
+            { label: 'Symbol', key: 'symbol' },
+            { label: 'Side', key: 'side' },
+            { label: 'Status', key: 'orderStatus' },
+            { label: 'Filled', key: 'filledQuantity', align: 'right', render: (r: any) => fmtNumber(r.filledQuantity, 4) },
+            { label: 'Avg Price', key: 'averagePrice', align: 'right', render: (r: any) => fmtUsd(r.averagePrice) }
+          ]}
+          rows={streamOrders}
+          emptyText="No stream orders"
+        />
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">User Stream Account Events</h3>
+        <DataTable
+          columns={[
+            { label: 'Event Time', key: 'eventTime', render: (r: any) => fmtDateTime(r.eventTime) },
+            { label: 'Type', key: 'eventType' },
+            { label: 'Assets', key: 'balances', render: (r: any) => String(r.balances?.length || 0) }
+          ]}
+          rows={streamAccounts}
+          emptyText="No stream account events"
+        />
       </div>
     </div>
   )

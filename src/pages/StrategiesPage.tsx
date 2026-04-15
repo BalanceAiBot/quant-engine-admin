@@ -3,7 +3,7 @@ import { apiGet, apiPost } from '../lib/api'
 import { usePolling } from '../hooks/usePolling'
 import { DataTable } from '../components/DataTable'
 import { showToast } from '../components/ToastContainer'
-import { badgeClass } from '../lib/utils'
+import { badgeClass, fmtNumber, fmtDateTime } from '../lib/utils'
 
 export function StrategiesPage() {
   const [strategies, setStrategies] = useState<any[]>([])
@@ -12,6 +12,8 @@ export function StrategiesPage() {
   const [runtimeStatuses, setRuntimeStatuses] = useState<any[]>([])
   const [schedulerStatus, setSchedulerStatus] = useState<any>(null)
   const [optimizationStatus, setOptimizationStatus] = useState<any>(null)
+  const [evaluations, setEvaluations] = useState<any[]>([])
+  const [latestEvaluations, setLatestEvaluations] = useState<any[]>([])
 
   // backtest form
   const [btStrategy, setBtStrategy] = useState('')
@@ -53,14 +55,18 @@ export function StrategiesPage() {
   }, [])
 
   usePolling(async () => {
-    const [rtRes, schRes, optRes] = await Promise.all([
+    const [rtRes, schRes, optRes, evRes, leRes] = await Promise.all([
       apiGet('/api/strategies/runtime/status'),
       apiGet('/api/strategies/runtime/scheduler'),
-      apiGet('/api/strategies/runtime/optimization')
+      apiGet('/api/strategies/runtime/optimization'),
+      apiGet('/api/strategy-evaluations'),
+      apiGet('/api/strategy-evaluations/latest')
     ])
     setRuntimeStatuses(rtRes.data || [])
     setSchedulerStatus(schRes.data)
     setOptimizationStatus(optRes.data)
+    setEvaluations(evRes.data || [])
+    setLatestEvaluations(leRes.data || [])
   }, 5000)
 
   const runBacktest = async (e: React.FormEvent) => {
@@ -519,6 +525,34 @@ export function StrategiesPage() {
           />
           <button type="submit" className="px-3 py-2 rounded text-sm bg-emerald-600 hover:bg-emerald-500 text-white">Upsert Policy</button>
         </form>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">Latest Evaluations</h3>
+        <DataTable
+          columns={[
+            { label: 'Strategy', key: 'strategyId' },
+            { label: 'Metric', key: 'metric' },
+            { label: 'Value', key: 'value', align: 'right', render: (r) => fmtNumber(r.value, 4) },
+            { label: 'As Of', key: 'asOf', render: (r) => fmtDateTime(r.asOf) }
+          ]}
+          rows={latestEvaluations}
+          emptyText="No latest evaluations"
+        />
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">All Evaluations</h3>
+        <DataTable
+          columns={[
+            { label: 'Strategy', key: 'strategyId' },
+            { label: 'Metric', key: 'metric' },
+            { label: 'Value', key: 'value', align: 'right', render: (r) => fmtNumber(r.value, 4) },
+            { label: 'As Of', key: 'asOf', render: (r) => fmtDateTime(r.asOf) }
+          ]}
+          rows={evaluations}
+          emptyText="No evaluations"
+        />
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
