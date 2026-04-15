@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from '../lib/api'
+import { usePolling } from '../hooks/usePolling'
 import { DataTable } from '../components/DataTable'
 import { showToast } from '../components/ToastContainer'
+import { badgeClass } from '../lib/utils'
 
 export function StrategiesPage() {
   const [strategies, setStrategies] = useState<any[]>([])
   const [presets, setPresets] = useState<any[]>([])
   const [result, setResult] = useState<any>(null)
+  const [runtimeStatuses, setRuntimeStatuses] = useState<any[]>([])
+  const [schedulerStatus, setSchedulerStatus] = useState<any>(null)
+  const [optimizationStatus, setOptimizationStatus] = useState<any>(null)
 
   // backtest form
   const [btStrategy, setBtStrategy] = useState('')
@@ -20,16 +25,43 @@ export function StrategiesPage() {
   const [optEntryMin, setOptEntryMin] = useState('')
   const [optEntryMax, setOptEntryMax] = useState('')
 
+  // runtime optimize form
+  const [rtOptStrategy, setRtOptStrategy] = useState('')
+  const [rtOptSymbol, setRtOptSymbol] = useState('BTCUSDT')
+  const [rtOptObjective, setRtOptObjective] = useState('netPnl')
+  const [rtOptLimit, setRtOptLimit] = useState('128')
+  const [rtOptApply, setRtOptApply] = useState(true)
+
+  // runtime policy form
+  const [policyStrategy, setPolicyStrategy] = useState('')
+  const [policySymbol, setPolicySymbol] = useState('BTCUSDT')
+  const [policyObjective, setPolicyObjective] = useState('netPnl')
+  const [policyInterval, setPolicyInterval] = useState('30000')
+
   useEffect(() => {
     apiGet('/api/strategies').then((res) => {
       setStrategies(res.data.strategies || [])
       setPresets(res.data.presets || [])
       if (res.data.strategies?.length) {
-        setBtStrategy(res.data.strategies[0].id)
-        setOptStrategy(res.data.strategies[0].id)
+        const first = res.data.strategies[0].id
+        setBtStrategy(first)
+        setOptStrategy(first)
+        setRtOptStrategy(first)
+        setPolicyStrategy(first)
       }
     })
   }, [])
+
+  usePolling(async () => {
+    const [rtRes, schRes, optRes] = await Promise.all([
+      apiGet('/api/strategies/runtime/status'),
+      apiGet('/api/strategies/runtime/scheduler'),
+      apiGet('/api/strategies/runtime/optimization')
+    ])
+    setRuntimeStatuses(rtRes.data || [])
+    setSchedulerStatus(schRes.data)
+    setOptimizationStatus(optRes.data)
+  }, 5000)
 
   const runBacktest = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,6 +103,133 @@ export function StrategiesPage() {
     }
   }
 
+  const runRuntimeOptimize = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const res = await apiPost('/api/strategies/runtime/optimize', {
+        strategyId: rtOptStrategy,
+        objective: rtOptObjective,
+        symbol: rtOptSymbol,
+        limit: Number(rtOptLimit),
+        applyToRuntime: rtOptApply,
+        parameterRanges: {}
+      })
+      setResult(res.data)
+      showToast('Runtime optimization completed', 'success')
+    } catch (err: any) {
+      showToast(err.message, 'error')
+    }
+  }
+
+  const upsertPolicy = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const res = await apiPost('/api/strategies/runtime/optimization/policies/upsert', {
+        strategyId: policyStrategy,
+        objective: policyObjective,
+        symbol: policySymbol,
+        applyToRuntime: true,
+        parameterRanges: {}
+      })
+      setOptimizationStatus(res.data)
+      showToast('Policy upserted', 'success')
+    } catch (err: any) {
+      showToast(err.message, 'error')
+    }
+  }
+
+  const removePolicy = async (strategyId: string, symbol: string) => {
+    try {
+      await apiPost('/api/strategies/runtime/optimization/policies/remove', { strategyId, symbol })
+      showToast('Policy removed', 'success')
+    } catch (err: any) {
+      showToast(err.message, 'error')
+    }
+  }
+
+  const handleRuntimeStart = async (strategyId: string, params?: any) => {
+    try {
+      const payload: any = { strategyId }
+      if (params) payload.parameters = params
+      await apiPost('/api/strategies/runtime/start', payload)
+      showToast('Runtime started', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleRuntimeStop = async (strategyId: string) => {
+    try {
+      await apiPost('/api/strategies/runtime/stop', { strategyId })
+      showToast('Runtime stopped', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleRuntimeTick = async (strategyId: string) => {
+    try {
+      await apiPost('/api/strategies/runtime/tick', { strategyId })
+      showToast('Runtime ticked', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleSchedulerStart = async () => {
+    try {
+      await apiPost('/api/strategies/runtime/scheduler/start', {})
+      showToast('Scheduler started', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleSchedulerStop = async () => {
+    try {
+      await apiPost('/api/strategies/runtime/scheduler/stop', {})
+      showToast('Scheduler stopped', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleSchedulerTick = async () => {
+    try {
+      await apiPost('/api/strategies/runtime/scheduler/tick', {})
+      showToast('Scheduler ticked', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleOptSchedulerStart = async () => {
+    try {
+      await apiPost('/api/strategies/runtime/optimization/scheduler/start', { intervalMs: Number(policyInterval) })
+      showToast('Optimization scheduler started', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleOptSchedulerStop = async () => {
+    try {
+      await apiPost('/api/strategies/runtime/optimization/scheduler/stop', {})
+      showToast('Optimization scheduler stopped', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleOptSchedulerTick = async () => {
+    try {
+      await apiPost('/api/strategies/runtime/optimization/scheduler/tick', {})
+      showToast('Optimization scheduler ticked', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Strategies</h2>
@@ -98,6 +257,72 @@ export function StrategiesPage() {
             />
           </>
         )}
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">Runtime Status</h3>
+        <DataTable
+          columns={[
+            { label: 'Strategy', key: 'strategyId' },
+            {
+              label: 'State',
+              key: 'state',
+              render: (r) => (
+                <span className={`px-2 py-0.5 rounded text-xs ${badgeClass(r.state)}`}>{r.state}</span>
+              )
+            },
+            { label: 'Mode', key: 'mode' },
+            { label: 'Venue', key: 'executionVenue' },
+            { label: 'Ticks', key: 'tickCount', align: 'right' },
+            { label: 'Signals', key: 'signalCount', align: 'right' },
+            { label: 'Execs', key: 'executionCount', align: 'right' },
+            {
+              label: 'Actions',
+              key: 'actions',
+              render: (r) => (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleRuntimeStart(r.strategyId)}
+                    className="px-2 py-1 rounded text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+                  >
+                    Start
+                  </button>
+                  <button
+                    onClick={() => handleRuntimeTick(r.strategyId)}
+                    className="px-2 py-1 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white"
+                  >
+                    Tick
+                  </button>
+                  <button
+                    onClick={() => handleRuntimeStop(r.strategyId)}
+                    className="px-2 py-1 rounded text-xs bg-rose-600 hover:bg-rose-500 text-white"
+                  >
+                    Stop
+                  </button>
+                </div>
+              )
+            }
+          ]}
+          rows={runtimeStatuses}
+          emptyText="No runtime instances"
+        />
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-slate-300">Runtime Scheduler</h3>
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded text-xs ${badgeClass(schedulerStatus?.state || 'stopped')}`}>
+              {schedulerStatus?.state || 'stopped'}
+            </span>
+            <button onClick={handleSchedulerStart} className="px-3 py-1.5 rounded text-xs bg-emerald-600 hover:bg-emerald-500 text-white">Start</button>
+            <button onClick={handleSchedulerTick} className="px-3 py-1.5 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white">Tick</button>
+            <button onClick={handleSchedulerStop} className="px-3 py-1.5 rounded text-xs bg-rose-600 hover:bg-rose-500 text-white">Stop</button>
+          </div>
+        </div>
+        <div className="text-xs text-slate-400">
+          Tick Count: {schedulerStatus?.tickCount ?? 0} | Executions: {schedulerStatus?.executionCount ?? 0}
+        </div>
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
@@ -173,6 +398,126 @@ export function StrategiesPage() {
             onChange={(e) => setOptEntryMax(e.target.value)}
           />
           <button type="submit" className="px-3 py-2 rounded text-sm bg-blue-600 hover:bg-blue-500 text-white">Run</button>
+        </form>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">Runtime Optimize</h3>
+        <form onSubmit={runRuntimeOptimize} className="grid grid-cols-1 sm:grid-cols-6 gap-3">
+          <select
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            value={rtOptStrategy}
+            onChange={(e) => setRtOptStrategy(e.target.value)}
+          >
+            {strategies.map((s) => (
+              <option key={s.id} value={s.id}>{s.id}</option>
+            ))}
+          </select>
+          <input
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            placeholder="Symbol"
+            value={rtOptSymbol}
+            onChange={(e) => setRtOptSymbol(e.target.value)}
+          />
+          <select
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            value={rtOptObjective}
+            onChange={(e) => setRtOptObjective(e.target.value)}
+          >
+            <option value="netPnl">netPnl</option>
+            <option value="sharpeLike">sharpeLike</option>
+            <option value="maxDrawdownPct">maxDrawdownPct</option>
+          </select>
+          <input
+            type="number"
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            placeholder="Limit"
+            value={rtOptLimit}
+            onChange={(e) => setRtOptLimit(e.target.value)}
+          />
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={rtOptApply}
+              onChange={(e) => setRtOptApply(e.target.checked)}
+            />
+            Apply to runtime
+          </label>
+          <button type="submit" className="px-3 py-2 rounded text-sm bg-amber-600 hover:bg-amber-500 text-white">Run</button>
+        </form>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-slate-300">Optimization Scheduler</h3>
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded text-xs ${badgeClass(optimizationStatus?.scheduler?.state || 'stopped')}`}>
+              {optimizationStatus?.scheduler?.state || 'stopped'}
+            </span>
+            <button onClick={handleOptSchedulerStart} className="px-3 py-1.5 rounded text-xs bg-emerald-600 hover:bg-emerald-500 text-white">Start</button>
+            <button onClick={handleOptSchedulerTick} className="px-3 py-1.5 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white">Tick</button>
+            <button onClick={handleOptSchedulerStop} className="px-3 py-1.5 rounded text-xs bg-rose-600 hover:bg-rose-500 text-white">Stop</button>
+          </div>
+        </div>
+        <div className="text-xs text-slate-400 mb-3">
+          Tick Count: {optimizationStatus?.scheduler?.tickCount ?? 0} | Interval: {policyInterval}ms
+        </div>
+        <h4 className="text-xs font-medium text-slate-400 mb-2">Policies</h4>
+        <DataTable
+          columns={[
+            { label: 'Strategy', key: 'strategyId' },
+            { label: 'Symbol', key: 'symbol' },
+            { label: 'Objective', key: 'objective' },
+            { label: 'Apply', key: 'applyToRuntime', render: (r) => (r.applyToRuntime ? 'Yes' : 'No') },
+            {
+              label: 'Actions',
+              key: 'actions',
+              render: (r) => (
+                <button
+                  onClick={() => removePolicy(String(r.strategyId), String(r.symbol))}
+                  className="px-2 py-1 rounded text-xs bg-rose-600 hover:bg-rose-500 text-white"
+                >
+                  Remove
+                </button>
+              )
+            }
+          ]}
+          rows={optimizationStatus?.policies || []}
+          emptyText="No policies"
+        />
+        <form onSubmit={upsertPolicy} className="grid grid-cols-1 sm:grid-cols-5 gap-3 mt-3">
+          <select
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            value={policyStrategy}
+            onChange={(e) => setPolicyStrategy(e.target.value)}
+          >
+            {strategies.map((s) => (
+              <option key={s.id} value={s.id}>{s.id}</option>
+            ))}
+          </select>
+          <input
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            placeholder="Symbol"
+            value={policySymbol}
+            onChange={(e) => setPolicySymbol(e.target.value)}
+          />
+          <select
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            value={policyObjective}
+            onChange={(e) => setPolicyObjective(e.target.value)}
+          >
+            <option value="netPnl">netPnl</option>
+            <option value="sharpeLike">sharpeLike</option>
+            <option value="maxDrawdownPct">maxDrawdownPct</option>
+          </select>
+          <input
+            type="number"
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            placeholder="Interval ms"
+            value={policyInterval}
+            onChange={(e) => setPolicyInterval(e.target.value)}
+          />
+          <button type="submit" className="px-3 py-2 rounded text-sm bg-emerald-600 hover:bg-emerald-500 text-white">Upsert Policy</button>
         </form>
       </div>
 
