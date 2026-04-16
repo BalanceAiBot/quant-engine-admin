@@ -59,18 +59,32 @@ export function StrategiesPage() {
   const [govActionType, setGovActionType] = useState('approve_live_candidate')
   const [govActionNote, setGovActionNote] = useState('')
 
+  // live promotion
+  const [livePromotions, setLivePromotions] = useState<Record<string, any>>({})
+
+  const fetchLivePromotion = async (strategyId: string) => {
+    try {
+      const res = await apiGet(`/api/strategies/governance/${strategyId}/live-promotion`)
+      setLivePromotions((prev) => ({ ...prev, [strategyId]: res.data }))
+    } catch {
+      // ignore errors for missing promotions
+    }
+  }
+
   useEffect(() => {
     apiGet('/api/strategies').then((res) => {
-      setStrategies(res.data.strategies || [])
+      const list = res.data.strategies || []
+      setStrategies(list)
       setPresets(res.data.presets || [])
-      if (res.data.strategies?.length) {
-        const first = res.data.strategies[0].id
+      if (list.length) {
+        const first = list[0].id
         setBtStrategy(first)
         setOptStrategy(first)
         setWfStrategy(first)
         setRtOptStrategy(first)
         setPolicyStrategy(first)
         setGovActionStrategy(first)
+        list.forEach((s: any) => fetchLivePromotion(s.id))
       }
     })
   }, [])
@@ -358,7 +372,20 @@ export function StrategiesPage() {
           columns={[
             { label: 'ID', key: 'id' },
             { label: 'Name', key: 'name' },
-            { label: 'Description', key: 'description' }
+            { label: 'Description', key: 'description' },
+            {
+              label: 'Live Promo',
+              key: 'livePromotion',
+              render: (r) => {
+                const promo = livePromotions[r.id]
+                if (!promo) return <span className="text-slate-500">-</span>
+                return (
+                  <span className={promo.approved ? 'text-emerald-400' : 'text-amber-400'}>
+                    {promo.approved ? 'Approved' : promo.pending ? 'Pending' : 'Not Ready'}
+                  </span>
+                )
+              }
+            }
           ]}
           rows={strategies}
         />

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { apiGet, apiPost } from '../lib/api'
+import { apiGet, apiPost, apiPut, apiDelete } from '../lib/api'
 import { usePolling } from '../hooks/usePolling'
 import { DataTable } from '../components/DataTable'
 import { showToast } from '../components/ToastContainer'
@@ -11,20 +11,25 @@ export function AccountsPage() {
   const [tradingRules, setTradingRules] = useState<any>(null)
   const [streamOrders, setStreamOrders] = useState<any[]>([])
   const [streamAccounts, setStreamAccounts] = useState<any[]>([])
+  const [credentials, setCredentials] = useState<any>(null)
+  const [credApiKey, setCredApiKey] = useState('')
+  const [credApiSecret, setCredApiSecret] = useState('')
 
   usePolling(async () => {
-    const [aRes, sRes, tRes, oRes, acRes] = await Promise.all([
+    const [aRes, sRes, tRes, oRes, acRes, cRes] = await Promise.all([
       apiGet('/api/accounts/binance'),
       apiGet('/api/accounts/user-stream/status'),
       apiGet('/api/accounts/binance/trading-rules'),
       apiGet('/api/accounts/user-stream/orders'),
-      apiGet('/api/accounts/user-stream/accounts')
+      apiGet('/api/accounts/user-stream/accounts'),
+      apiGet('/api/accounts/binance/credentials')
     ])
     setAccount(aRes.data)
     setStream(sRes.data)
     setTradingRules(tRes.data)
     setStreamOrders(oRes.data || [])
     setStreamAccounts(acRes.data || [])
+    setCredentials(cRes.data)
   }, 5000)
 
   const handleStart = async () => {
@@ -57,9 +62,61 @@ export function AccountsPage() {
     }
   }
 
+  const handleSaveCredentials = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await apiPut('/api/accounts/binance/credentials', {
+        apiKey: credApiKey,
+        apiSecret: credApiSecret
+      })
+      showToast('Credentials saved', 'success')
+      setCredApiKey('')
+      setCredApiSecret('')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleDeleteCredentials = async () => {
+    try {
+      await apiDelete('/api/accounts/binance/credentials')
+      showToast('Credentials deleted', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Accounts</h2>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">Binance Credentials</h3>
+        <div className="text-xs text-slate-400 mb-2">
+          Configured: {credentials?.hasCredentials ? 'Yes' : 'No'}
+          {credentials?.lastUpdatedAt && ` • Updated: ${fmtDateTime(credentials.lastUpdatedAt)}`}
+        </div>
+        <form onSubmit={handleSaveCredentials} className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+          <input
+            type="password"
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            placeholder="API Key"
+            value={credApiKey}
+            onChange={(e) => setCredApiKey(e.target.value)}
+          />
+          <input
+            type="password"
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            placeholder="API Secret"
+            value={credApiSecret}
+            onChange={(e) => setCredApiSecret(e.target.value)}
+          />
+          <div className="flex items-center gap-2">
+            <button type="submit" className="px-3 py-2 rounded text-sm bg-emerald-600 hover:bg-emerald-500 text-white">Save</button>
+            <button type="button" onClick={handleDeleteCredentials} className="px-3 py-2 rounded text-sm bg-rose-600 hover:bg-rose-500 text-white">Delete</button>
+          </div>
+        </form>
+      </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
         <h3 className="text-sm font-medium text-slate-300 mb-3">Binance Account</h3>

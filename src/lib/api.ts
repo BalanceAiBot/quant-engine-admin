@@ -54,3 +54,43 @@ export async function apiPost(path: string, payload: unknown) {
   }
   return data
 }
+
+export async function apiPut(path: string, payload: unknown) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PUT',
+    headers: {
+      'content-type': 'application/json',
+      'x-control-token': getToken()
+    },
+    body: JSON.stringify(payload)
+  })
+  if (res.status === 401) {
+    clearToken()
+    window.dispatchEvent(new CustomEvent('admin:unauthorized'))
+    throw new Error('Unauthorized')
+  }
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new Error(data?.error || `HTTP ${res.status}`)
+  }
+  return data
+}
+
+export async function apiDelete(path: string) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'DELETE',
+    headers: {
+      'x-control-token': getToken()
+    }
+  })
+  if (res.status === 401) {
+    clearToken()
+    window.dispatchEvent(new CustomEvent('admin:unauthorized'))
+    throw new Error('Unauthorized')
+  }
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new Error(data?.error || `HTTP ${res.status}`)
+  }
+  return data
+}
