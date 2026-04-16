@@ -8,6 +8,7 @@ import { TradingPage } from './pages/TradingPage'
 import { RiskPage } from './pages/RiskPage'
 import { AccountsPage } from './pages/AccountsPage'
 import { StrategiesPage } from './pages/StrategiesPage'
+import { AlertsPage } from './pages/AlertsPage'
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
             <Route path="risk" element={<RiskPage />} />
             <Route path="accounts" element={<AccountsPage />} />
             <Route path="strategies" element={<StrategiesPage />} />
+            <Route path="alerts" element={<AlertsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

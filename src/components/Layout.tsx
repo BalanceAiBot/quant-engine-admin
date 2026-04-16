@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Users,
   Sparkles,
+  Bell,
   LogOut,
   UserCog
 } from 'lucide-react'
@@ -20,6 +21,7 @@ const navItems = [
   { to: '/risk', label: 'Risk', icon: ShieldCheck },
   { to: '/accounts', label: 'Accounts', icon: Users },
   { to: '/strategies', label: 'Strategies', icon: Sparkles },
+  { to: '/alerts', label: 'Alerts', icon: Bell },
 ]
 
 export function Layout() {
