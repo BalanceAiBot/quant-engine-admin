@@ -15,6 +15,13 @@ export function StrategiesPage() {
   const [evaluations, setEvaluations] = useState<any[]>([])
   const [latestEvaluations, setLatestEvaluations] = useState<any[]>([])
 
+  // governance
+  const [governanceStatuses, setGovernanceStatuses] = useState<any[]>([])
+  const [healthStatuses, setHealthStatuses] = useState<any[]>([])
+  const [governanceScheduler, setGovernanceScheduler] = useState<any>(null)
+  const [governanceActions, setGovernanceActions] = useState<any[]>([])
+  const [operatorActions, setOperatorActions] = useState<any[]>([])
+
   // backtest form
   const [btStrategy, setBtStrategy] = useState('')
   const [btEntry, setBtEntry] = useState('')
@@ -26,6 +33,13 @@ export function StrategiesPage() {
   const [optObjective, setOptObjective] = useState('netPnl')
   const [optEntryMin, setOptEntryMin] = useState('')
   const [optEntryMax, setOptEntryMax] = useState('')
+
+  // walk-forward form
+  const [wfStrategy, setWfStrategy] = useState('')
+  const [wfObjective, setWfObjective] = useState('netPnl')
+  const [wfTrainSize, setWfTrainSize] = useState('200')
+  const [wfTestSize, setWfTestSize] = useState('50')
+  const [wfStepSize, setWfStepSize] = useState('')
 
   // runtime optimize form
   const [rtOptStrategy, setRtOptStrategy] = useState('')
@@ -40,6 +54,11 @@ export function StrategiesPage() {
   const [policyObjective, setPolicyObjective] = useState('netPnl')
   const [policyInterval, setPolicyInterval] = useState('30000')
 
+  // governance operator action form
+  const [govActionStrategy, setGovActionStrategy] = useState('')
+  const [govActionType, setGovActionType] = useState('approve_live_candidate')
+  const [govActionNote, setGovActionNote] = useState('')
+
   useEffect(() => {
     apiGet('/api/strategies').then((res) => {
       setStrategies(res.data.strategies || [])
@@ -48,25 +67,48 @@ export function StrategiesPage() {
         const first = res.data.strategies[0].id
         setBtStrategy(first)
         setOptStrategy(first)
+        setWfStrategy(first)
         setRtOptStrategy(first)
         setPolicyStrategy(first)
+        setGovActionStrategy(first)
       }
     })
   }, [])
 
   usePolling(async () => {
-    const [rtRes, schRes, optRes, evRes, leRes] = await Promise.all([
+    const [
+      rtRes,
+      schRes,
+      optRes,
+      evRes,
+      leRes,
+      govRes,
+      healthRes,
+      govSchRes,
+      govActRes,
+      opActRes
+    ] = await Promise.all([
       apiGet('/api/strategies/runtime/status'),
       apiGet('/api/strategies/runtime/scheduler'),
       apiGet('/api/strategies/runtime/optimization'),
       apiGet('/api/strategy-evaluations'),
-      apiGet('/api/strategy-evaluations/latest')
+      apiGet('/api/strategy-evaluations/latest'),
+      apiGet('/api/strategies/governance'),
+      apiGet('/api/strategies/health'),
+      apiGet('/api/strategies/governance/scheduler'),
+      apiGet('/api/strategies/governance/actions?limit=20'),
+      apiGet('/api/strategies/governance/operator-actions?limit=20')
     ])
     setRuntimeStatuses(rtRes.data || [])
     setSchedulerStatus(schRes.data)
     setOptimizationStatus(optRes.data)
     setEvaluations(evRes.data || [])
     setLatestEvaluations(leRes.data || [])
+    setGovernanceStatuses(govRes.data || [])
+    setHealthStatuses(healthRes.data || [])
+    setGovernanceScheduler(govSchRes.data)
+    setGovernanceActions(govActRes.data || [])
+    setOperatorActions(opActRes.data || [])
   }, 5000)
 
   const runBacktest = async (e: React.FormEvent) => {
@@ -104,6 +146,25 @@ export function StrategiesPage() {
       const res = await apiPost('/api/backtests/optimize', payload)
       setResult(res.data)
       showToast('Optimization completed', 'success')
+    } catch (err: any) {
+      showToast(err.message, 'error')
+    }
+  }
+
+  const runWalkForward = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const payload: any = {
+      strategyId: wfStrategy,
+      objective: wfObjective,
+      trainSize: Number(wfTrainSize),
+      testSize: Number(wfTestSize),
+      parameterRanges: {}
+    }
+    if (wfStepSize) payload.stepSize = Number(wfStepSize)
+    try {
+      const res = await apiPost('/api/backtests/walk-forward', payload)
+      setResult(res.data)
+      showToast('Walk-forward completed', 'success')
     } catch (err: any) {
       showToast(err.message, 'error')
     }
@@ -182,6 +243,15 @@ export function StrategiesPage() {
     }
   }
 
+  const handleRuntimePause = async (strategyId: string) => {
+    try {
+      await apiPost('/api/strategies/runtime/pause', { strategyId })
+      showToast('Runtime paused', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
   const handleSchedulerStart = async () => {
     try {
       await apiPost('/api/strategies/runtime/scheduler/start', {})
@@ -231,6 +301,48 @@ export function StrategiesPage() {
     try {
       await apiPost('/api/strategies/runtime/optimization/scheduler/tick', {})
       showToast('Optimization scheduler ticked', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleGovSchedulerStart = async () => {
+    try {
+      await apiPost('/api/strategies/governance/scheduler/start', {})
+      showToast('Governance scheduler started', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleGovSchedulerStop = async () => {
+    try {
+      await apiPost('/api/strategies/governance/scheduler/stop', {})
+      showToast('Governance scheduler stopped', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const handleGovSchedulerTick = async () => {
+    try {
+      await apiPost('/api/strategies/governance/scheduler/tick', {})
+      showToast('Governance scheduler ticked', 'success')
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  const applyOperatorAction = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await apiPost('/api/strategies/governance/operator-actions', {
+        strategyId: govActionStrategy,
+        action: govActionType,
+        ...(govActionNote ? { note: govActionNote } : {})
+      })
+      showToast('Operator action applied', 'success')
+      setGovActionNote('')
     } catch (e: any) {
       showToast(e.message, 'error')
     }
@@ -286,7 +398,7 @@ export function StrategiesPage() {
               label: 'Actions',
               key: 'actions',
               render: (r) => (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-wrap">
                   <button
                     onClick={() => handleRuntimeStart(r.strategyId)}
                     className="px-2 py-1 rounded text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
@@ -298,6 +410,12 @@ export function StrategiesPage() {
                     className="px-2 py-1 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white"
                   >
                     Tick
+                  </button>
+                  <button
+                    onClick={() => handleRuntimePause(r.strategyId)}
+                    className="px-2 py-1 rounded text-xs bg-amber-600 hover:bg-amber-500 text-white"
+                  >
+                    Pause
                   </button>
                   <button
                     onClick={() => handleRuntimeStop(r.strategyId)}
@@ -404,6 +522,52 @@ export function StrategiesPage() {
             onChange={(e) => setOptEntryMax(e.target.value)}
           />
           <button type="submit" className="px-3 py-2 rounded text-sm bg-blue-600 hover:bg-blue-500 text-white">Run</button>
+        </form>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">Walk-Forward</h3>
+        <form onSubmit={runWalkForward} className="grid grid-cols-1 sm:grid-cols-6 gap-3">
+          <select
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            value={wfStrategy}
+            onChange={(e) => setWfStrategy(e.target.value)}
+          >
+            {strategies.map((s) => (
+              <option key={s.id} value={s.id}>{s.id}</option>
+            ))}
+          </select>
+          <select
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            value={wfObjective}
+            onChange={(e) => setWfObjective(e.target.value)}
+          >
+            <option value="netPnl">netPnl</option>
+            <option value="sharpeLike">sharpeLike</option>
+            <option value="maxDrawdownPct">maxDrawdownPct</option>
+          </select>
+          <input
+            type="number"
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            placeholder="Train size"
+            value={wfTrainSize}
+            onChange={(e) => setWfTrainSize(e.target.value)}
+          />
+          <input
+            type="number"
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            placeholder="Test size"
+            value={wfTestSize}
+            onChange={(e) => setWfTestSize(e.target.value)}
+          />
+          <input
+            type="number"
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            placeholder="Step size (opt)"
+            value={wfStepSize}
+            onChange={(e) => setWfStepSize(e.target.value)}
+          />
+          <button type="submit" className="px-3 py-2 rounded text-sm bg-indigo-600 hover:bg-indigo-500 text-white">Run</button>
         </form>
       </div>
 
@@ -524,6 +688,103 @@ export function StrategiesPage() {
             onChange={(e) => setPolicyInterval(e.target.value)}
           />
           <button type="submit" className="px-3 py-2 rounded text-sm bg-emerald-600 hover:bg-emerald-500 text-white">Upsert Policy</button>
+        </form>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-slate-300">Governance Scheduler</h3>
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded text-xs ${badgeClass(governanceScheduler?.state || 'stopped')}`}>
+              {governanceScheduler?.state || 'stopped'}
+            </span>
+            <button onClick={handleGovSchedulerStart} className="px-3 py-1.5 rounded text-xs bg-emerald-600 hover:bg-emerald-500 text-white">Start</button>
+            <button onClick={handleGovSchedulerTick} className="px-3 py-1.5 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white">Tick</button>
+            <button onClick={handleGovSchedulerStop} className="px-3 py-1.5 rounded text-xs bg-rose-600 hover:bg-rose-500 text-white">Stop</button>
+          </div>
+        </div>
+        <div className="text-xs text-slate-400 mb-3">
+          Tick Count: {governanceScheduler?.tickCount ?? 0}
+        </div>
+        <h4 className="text-xs font-medium text-slate-400 mb-2">Governance Statuses</h4>
+        <DataTable
+          columns={[
+            { label: 'Strategy', key: 'strategyId' },
+            { label: 'Stage', key: 'stage' },
+            { label: 'State', key: 'state', render: (r) => <span className={`px-2 py-0.5 rounded text-xs ${badgeClass(r.state)}`}>{r.state}</span> },
+            { label: 'Live Ready', key: 'liveReady', render: (r) => (r.liveReady ? 'Yes' : 'No') },
+            { label: 'Degraded', key: 'degraded', render: (r) => (r.degraded ? 'Yes' : 'No') }
+          ]}
+          rows={governanceStatuses}
+          emptyText="No governance statuses"
+        />
+        <h4 className="text-xs font-medium text-slate-400 mb-2 mt-3">Health Statuses</h4>
+        <DataTable
+          columns={[
+            { label: 'Strategy', key: 'strategyId' },
+            { label: 'Healthy', key: 'healthy', render: (r) => <span className={r.healthy ? 'text-emerald-400' : 'text-rose-400'}>{r.healthy ? 'Yes' : 'No'}</span> },
+            { label: 'Checks', key: 'checkCount', align: 'right' },
+            { label: 'Issues', key: 'issueCount', align: 'right' }
+          ]}
+          rows={healthStatuses}
+          emptyText="No health statuses"
+        />
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">Governance Actions</h3>
+        <DataTable
+          columns={[
+            { label: 'Strategy', key: 'strategyId' },
+            { label: 'Action', key: 'action' },
+            { label: 'Reason', key: 'reason' },
+            { label: 'Time', key: 'timestamp', render: (r) => fmtDateTime(r.timestamp) }
+          ]}
+          rows={governanceActions}
+          emptyText="No governance actions"
+        />
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+        <h3 className="text-sm font-medium text-slate-300 mb-3">Operator Actions</h3>
+        <DataTable
+          columns={[
+            { label: 'Strategy', key: 'strategyId' },
+            { label: 'Action', key: 'action' },
+            { label: 'Operator', key: 'operatorId' },
+            { label: 'Note', key: 'note' },
+            { label: 'Time', key: 'timestamp', render: (r) => fmtDateTime(r.timestamp) }
+          ]}
+          rows={operatorActions}
+          emptyText="No operator actions"
+        />
+        <form onSubmit={applyOperatorAction} className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-3">
+          <select
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            value={govActionStrategy}
+            onChange={(e) => setGovActionStrategy(e.target.value)}
+          >
+            {strategies.map((s) => (
+              <option key={s.id} value={s.id}>{s.id}</option>
+            ))}
+          </select>
+          <select
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            value={govActionType}
+            onChange={(e) => setGovActionType(e.target.value)}
+          >
+            <option value="approve_live_candidate">approve_live_candidate</option>
+            <option value="reject_candidate">reject_candidate</option>
+            <option value="rollback_runtime">rollback_runtime</option>
+            <option value="acknowledge_degraded">acknowledge_degraded</option>
+          </select>
+          <input
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
+            placeholder="Note (optional)"
+            value={govActionNote}
+            onChange={(e) => setGovActionNote(e.target.value)}
+          />
+          <button type="submit" className="px-3 py-2 rounded text-sm bg-emerald-600 hover:bg-emerald-500 text-white">Apply</button>
         </form>
       </div>
 
