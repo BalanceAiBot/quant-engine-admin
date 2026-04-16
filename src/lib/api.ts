@@ -1,30 +1,58 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : '')
 
-function getToken() {
+function getBearerToken() {
+  return sessionStorage.getItem('bearerToken') || ''
+}
+
+function getControlToken() {
   return sessionStorage.getItem('controlToken') || ''
 }
 
-export function setToken(token: string) {
+export function setBearerToken(token: string) {
+  sessionStorage.setItem('bearerToken', token)
+}
+
+export function setControlToken(token: string) {
   sessionStorage.setItem('controlToken', token)
 }
 
 export function hasToken() {
-  return !!getToken()
+  return !!getBearerToken() || !!getControlToken()
 }
 
-export function clearToken() {
+export function clearTokens() {
+  sessionStorage.removeItem('bearerToken')
   sessionStorage.removeItem('controlToken')
 }
 
-export async function apiGet(path: string) {
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {}
+  const bearer = getBearerToken()
+  const control = getControlToken()
+  if (bearer) {
+    headers['authorization'] = `Bearer ${bearer}`
+  }
+  if (control) {
+    headers['x-control-token'] = control
+  }
+  return headers
+}
+
+function handleUnauthorized() {
+  clearTokens()
+  window.dispatchEvent(new CustomEvent('admin:unauthorized'))
+}
+
+async function apiFetch(path: string, options?: RequestInit) {
   const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
     headers: {
-      'x-control-token': getToken()
+      ...getAuthHeaders(),
+      ...(options?.headers || {})
     }
   })
   if (res.status === 401) {
-    clearToken()
-    window.dispatchEvent(new CustomEvent('admin:unauthorized'))
+    handleUnauthorized()
     throw new Error('Unauthorized')
   }
   const data = await res.json().catch(() => null)
@@ -32,65 +60,36 @@ export async function apiGet(path: string) {
     throw new Error(data?.error || `HTTP ${res.status}`)
   }
   return data
+}
+
+export async function apiGet(path: string) {
+  return apiFetch(path)
 }
 
 export async function apiPost(path: string, payload: unknown) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  return apiFetch(path, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-control-token': getToken()
-    },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload)
   })
-  if (res.status === 401) {
-    clearToken()
-    window.dispatchEvent(new CustomEvent('admin:unauthorized'))
-    throw new Error('Unauthorized')
-  }
-  const data = await res.json().catch(() => null)
-  if (!res.ok) {
-    throw new Error(data?.error || `HTTP ${res.status}`)
-  }
-  return data
 }
 
 export async function apiPut(path: string, payload: unknown) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  return apiFetch(path, {
     method: 'PUT',
-    headers: {
-      'content-type': 'application/json',
-      'x-control-token': getToken()
-    },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload)
   })
-  if (res.status === 401) {
-    clearToken()
-    window.dispatchEvent(new CustomEvent('admin:unauthorized'))
-    throw new Error('Unauthorized')
-  }
-  const data = await res.json().catch(() => null)
-  if (!res.ok) {
-    throw new Error(data?.error || `HTTP ${res.status}`)
-  }
-  return data
 }
 
 export async function apiDelete(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'DELETE',
-    headers: {
-      'x-control-token': getToken()
-    }
+  return apiFetch(path, { method: 'DELETE' })
+}
+
+export async function apiPatch(path: string, payload: unknown) {
+  return apiFetch(path, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload)
   })
-  if (res.status === 401) {
-    clearToken()
-    window.dispatchEvent(new CustomEvent('admin:unauthorized'))
-    throw new Error('Unauthorized')
-  }
-  const data = await res.json().catch(() => null)
-  if (!res.ok) {
-    throw new Error(data?.error || `HTTP ${res.status}`)
-  }
-  return data
 }
