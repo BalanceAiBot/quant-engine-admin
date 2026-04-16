@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { apiGet, apiPost, apiPut, apiDelete } from '../lib/api'
 import { usePolling } from '../hooks/usePolling'
-import { DataTable } from '../components/DataTable'
+import { Card, CardHeader } from '../components/ui/Card'
+import { DataTable } from '../components/composite/DataTable'
+import { PageHeader } from '../components/composite/PageHeader'
+import { Tabs, TabPanel } from '../components/ui/Tabs'
+import { Button } from '../components/ui/Button'
+import { Input, Label } from '../components/ui/Input'
+import { Badge } from '../components/ui/Badge'
 import { showToast } from '../components/ToastContainer'
-import { fmtNumber, fmtUsd, fmtDateTime, badgeClass } from '../lib/utils'
+import { fmtNumber, fmtUsd, fmtDateTime } from '../lib/utils'
 
 export function AccountsPage() {
   const [account, setAccount] = useState<any>(null)
@@ -14,6 +20,7 @@ export function AccountsPage() {
   const [credentials, setCredentials] = useState<any>(null)
   const [credApiKey, setCredApiKey] = useState('')
   const [credApiSecret, setCredApiSecret] = useState('')
+  const [activeTab, setActiveTab] = useState('balances')
 
   usePolling(async () => {
     const [aRes, sRes, tRes, oRes, acRes, cRes] = await Promise.all([
@@ -88,176 +95,208 @@ export function AccountsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Accounts</h2>
+      <PageHeader
+        title="Accounts"
+        description="Exchange accounts, balances, and credentials"
+      />
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">Binance Credentials</h3>
-        <div className="text-xs text-slate-400 mb-2">
-          Configured: {credentials?.hasCredentials ? 'Yes' : 'No'}
-          {credentials?.lastUpdatedAt && ` • Updated: ${fmtDateTime(credentials.lastUpdatedAt)}`}
-        </div>
-        <form onSubmit={handleSaveCredentials} className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-          <input
-            type="password"
-            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
-            placeholder="API Key"
-            value={credApiKey}
-            onChange={(e) => setCredApiKey(e.target.value)}
-          />
-          <input
-            type="password"
-            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
-            placeholder="API Secret"
-            value={credApiSecret}
-            onChange={(e) => setCredApiSecret(e.target.value)}
-          />
-          <div className="flex items-center gap-2">
-            <button type="submit" className="px-3 py-2 rounded text-sm bg-emerald-600 hover:bg-emerald-500 text-white">Save</button>
-            <button type="button" onClick={handleDeleteCredentials} className="px-3 py-2 rounded text-sm bg-rose-600 hover:bg-rose-500 text-white">Delete</button>
+      <Tabs
+        tabs={[
+          { id: 'balances', label: 'Balances' },
+          { id: 'stream', label: 'Stream' },
+          { id: 'rules', label: 'Trading Rules' },
+          { id: 'credentials', label: 'Credentials' },
+        ]}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+      >
+        <TabPanel id="balances" activeId={activeTab}>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader
+                title="Spot Balances"
+                subtitle={`Environment: ${account?.environment || '-'}`}
+              />
+              <DataTable
+                columns={[
+                  { key: 'asset', header: 'Asset' },
+                  { key: 'free', header: 'Free', align: 'right', render: (r: any) => fmtNumber(r.free, 6) },
+                  { key: 'locked', header: 'Locked', align: 'right', render: (r: any) => fmtNumber(r.locked, 6) },
+                  { key: 'total', header: 'Total', align: 'right', render: (r: any) => fmtNumber(r.total, 6) }
+                ]}
+                rows={account?.spot?.balances || []}
+                density="compact"
+                emptyTitle="No spot balances"
+              />
+            </Card>
+
+            <Card>
+              <CardHeader
+                title="Futures Positions"
+                subtitle={`Wallet: ${fmtUsd(account?.futures?.totalWalletBalance)} • Available: ${fmtUsd(account?.futures?.availableBalance)}`}
+              />
+              <DataTable
+                columns={[
+                  { key: 'symbol', header: 'Symbol' },
+                  { key: 'positionAmt', header: 'Amt', align: 'right', render: (r: any) => fmtNumber(r.positionAmt, 4) },
+                  { key: 'entryPrice', header: 'Entry', align: 'right', render: (r: any) => fmtUsd(r.entryPrice) },
+                  { key: 'markPrice', header: 'Mark', align: 'right', render: (r: any) => fmtUsd(r.markPrice) },
+                  { key: 'notional', header: 'Notional', align: 'right', render: (r: any) => fmtUsd(r.notional) }
+                ]}
+                rows={account?.futures?.positions || []}
+                density="compact"
+                emptyTitle="No futures positions"
+              />
+            </Card>
           </div>
-        </form>
-      </div>
+        </TabPanel>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">Binance Account</h3>
-        <div className="text-xs text-slate-400 mb-2">Environment: {account?.environment || '-'}</div>
-
-        <div className="mb-3">
-          <div className="text-sm font-medium text-slate-300 mb-1">Spot Balances</div>
-          <DataTable
-            columns={[
-              { label: 'Asset', key: 'asset' },
-              { label: 'Free', key: 'free', align: 'right', render: (r: any) => fmtNumber(r.free, 6) },
-              { label: 'Locked', key: 'locked', align: 'right', render: (r: any) => fmtNumber(r.locked, 6) },
-              { label: 'Total', key: 'total', align: 'right', render: (r: any) => fmtNumber(r.total, 6) }
-            ]}
-            rows={account?.spot?.balances || []}
-          />
-        </div>
-
-        <div>
-          <div className="text-sm font-medium text-slate-300 mb-1">
-            Futures • Wallet: {fmtUsd(account?.futures?.totalWalletBalance)} • Available: {fmtUsd(account?.futures?.availableBalance)}
+        <TabPanel id="stream" activeId={activeTab}>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <Badge variant={stream?.state === 'running' ? 'success' : 'default'} dot>
+              {stream?.state || 'idle'}
+            </Badge>
+            <div className="text-sm text-slate-400">
+              Orders: {stream?.orderUpdateCount || 0} • Accounts: {stream?.accountUpdateCount || 0}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="primary" size="sm" onClick={handleStart}>Start</Button>
+              <Button variant="secondary" size="sm" onClick={handleKeepAlive}>Keep Alive</Button>
+              <Button variant="danger" size="sm" onClick={handleStop}>Stop</Button>
+            </div>
           </div>
-          <DataTable
-            columns={[
-              { label: 'Symbol', key: 'symbol' },
-              { label: 'Amt', key: 'positionAmt', align: 'right', render: (r: any) => fmtNumber(r.positionAmt, 4) },
-              { label: 'Entry', key: 'entryPrice', align: 'right', render: (r: any) => fmtUsd(r.entryPrice) },
-              { label: 'Mark', key: 'markPrice', align: 'right', render: (r: any) => fmtUsd(r.markPrice) },
-              { label: 'Notional', key: 'notional', align: 'right', render: (r: any) => fmtUsd(r.notional) }
-            ]}
-            rows={account?.futures?.positions || []}
-          />
-        </div>
-      </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">Trading Rules</h3>
-        <div className="text-xs text-slate-400 mb-2">
-          Symbols: {tradingRules?.symbols?.length || 0}
-        </div>
-        <DataTable
-          columns={[
-            { label: 'Symbol', key: 'symbol' },
-            { label: 'Status', key: 'status' },
-            { label: 'Min Qty', key: 'minQty', align: 'right', render: (r: any) => fmtNumber(r.minQty, 6) },
-            { label: 'Max Qty', key: 'maxQty', align: 'right', render: (r: any) => fmtNumber(r.maxQty, 4) },
-            { label: 'Step', key: 'stepSize', align: 'right', render: (r: any) => fmtNumber(r.stepSize, 6) },
-            { label: 'Min Notional', key: 'minNotional', align: 'right', render: (r: any) => fmtUsd(r.minNotional) }
-          ]}
-          rows={tradingRules?.symbols?.slice(0, 20) || []}
-          emptyText="No trading rules"
-        />
-      </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {stream?.recentOrders?.length > 0 && (
+              <Card>
+                <CardHeader title="Recent Orders" />
+                <DataTable
+                  columns={[
+                    { key: 'symbol', header: 'Symbol' },
+                    { key: 'side', header: 'Side' },
+                    { key: 'orderStatus', header: 'Status' },
+                    { key: 'filledQuantity', header: 'Filled', align: 'right', render: (r: any) => fmtNumber(r.filledQuantity, 4) },
+                    { key: 'averagePrice', header: 'Avg Price', align: 'right', render: (r: any) => fmtUsd(r.averagePrice) }
+                  ]}
+                  rows={stream.recentOrders}
+                  density="compact"
+                  emptyTitle="No recent orders"
+                />
+              </Card>
+            )}
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">User Stream</h3>
-        <div className="flex items-center gap-2 mb-3">
-          <button onClick={handleStart} className="px-3 py-1.5 rounded text-sm bg-emerald-600 hover:bg-emerald-500 text-white">Start</button>
-          <button onClick={handleKeepAlive} className="px-3 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-500 text-white">Keep Alive</button>
-          <button onClick={handleStop} className="px-3 py-1.5 rounded text-sm bg-rose-600 hover:bg-rose-500 text-white">Stop</button>
-        </div>
+            {stream?.positions?.length > 0 && (
+              <Card>
+                <CardHeader title="Positions" />
+                <DataTable
+                  columns={[
+                    { key: 'symbol', header: 'Symbol' },
+                    { key: 'positionAmt', header: 'Amt', align: 'right', render: (r: any) => fmtNumber(r.positionAmt, 4) },
+                    { key: 'entryPrice', header: 'Entry', align: 'right', render: (r: any) => fmtUsd(r.entryPrice) },
+                    { key: 'unrealizedProfit', header: 'UPnL', align: 'right', render: (r: any) => fmtUsd(r.unrealizedProfit) }
+                  ]}
+                  rows={stream.positions}
+                  density="compact"
+                  emptyTitle="No positions"
+                />
+              </Card>
+            )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm mb-3">
-          <InfoItem label="State" value={stream?.state} badgeClass={badgeClass(stream?.state)} />
-          <InfoItem label="Orders" value={String(stream?.orderUpdateCount || 0)} />
-          <InfoItem label="Accounts" value={String(stream?.accountUpdateCount || 0)} />
-          <InfoItem label="Listen Key" value={stream?.listenKey ? stream.listenKey.slice(0, 8) + '...' : '-'} />
-        </div>
+            <Card>
+              <CardHeader title="User Stream Orders" />
+              <DataTable
+                columns={[
+                  { key: 'symbol', header: 'Symbol' },
+                  { key: 'side', header: 'Side' },
+                  { key: 'orderStatus', header: 'Status' },
+                  { key: 'filledQuantity', header: 'Filled', align: 'right', render: (r: any) => fmtNumber(r.filledQuantity, 4) },
+                  { key: 'averagePrice', header: 'Avg Price', align: 'right', render: (r: any) => fmtUsd(r.averagePrice) }
+                ]}
+                rows={streamOrders}
+                density="compact"
+                emptyTitle="No stream orders"
+              />
+            </Card>
 
-        {stream?.recentOrders?.length > 0 && (
-          <div className="mb-3">
-            <div className="text-sm font-medium text-slate-300 mb-1">Recent Orders</div>
+            <Card>
+              <CardHeader title="User Stream Account Events" />
+              <DataTable
+                columns={[
+                  { key: 'eventTime', header: 'Event Time', render: (r: any) => fmtDateTime(r.eventTime) },
+                  { key: 'eventType', header: 'Type' },
+                  { key: 'balances', header: 'Assets', render: (r: any) => String(r.balances?.length || 0) }
+                ]}
+                rows={streamAccounts}
+                density="compact"
+                emptyTitle="No stream account events"
+              />
+            </Card>
+          </div>
+        </TabPanel>
+
+        <TabPanel id="rules" activeId={activeTab}>
+          <Card>
+            <CardHeader
+              title="Trading Rules"
+              subtitle={`Symbols: ${tradingRules?.symbols?.length || 0}`}
+            />
             <DataTable
               columns={[
-                { label: 'Symbol', key: 'symbol' },
-                { label: 'Side', key: 'side' },
-                { label: 'Status', key: 'orderStatus' },
-                { label: 'Filled', key: 'filledQuantity', align: 'right', render: (r: any) => fmtNumber(r.filledQuantity, 4) },
-                { label: 'Avg Price', key: 'averagePrice', align: 'right', render: (r: any) => fmtUsd(r.averagePrice) }
+                { key: 'symbol', header: 'Symbol' },
+                { key: 'status', header: 'Status' },
+                { key: 'minQty', header: 'Min Qty', align: 'right', render: (r: any) => fmtNumber(r.minQty, 6) },
+                { key: 'maxQty', header: 'Max Qty', align: 'right', render: (r: any) => fmtNumber(r.maxQty, 4) },
+                { key: 'stepSize', header: 'Step', align: 'right', render: (r: any) => fmtNumber(r.stepSize, 6) },
+                { key: 'minNotional', header: 'Min Notional', align: 'right', render: (r: any) => fmtUsd(r.minNotional) }
               ]}
-              rows={stream.recentOrders}
+              rows={tradingRules?.symbols?.slice(0, 50) || []}
+              density="compact"
+              emptyTitle="No trading rules"
             />
+          </Card>
+        </TabPanel>
+
+        <TabPanel id="credentials" activeId={activeTab}>
+          <div className="mx-auto max-w-2xl">
+            <Card>
+              <CardHeader
+                title="Binance Credentials"
+                subtitle={credentials?.lastUpdatedAt ? `Last updated: ${fmtDateTime(credentials.lastUpdatedAt)}` : undefined}
+              />
+              <div className="mb-4 flex items-center gap-2 text-sm">
+                <span className="text-slate-400">Configured:</span>
+                <Badge variant={credentials?.hasCredentials ? 'success' : 'default'} dot>
+                  {credentials?.hasCredentials ? 'Yes' : 'No'}
+                </Badge>
+              </div>
+              <form onSubmit={handleSaveCredentials} className="space-y-4">
+                <div>
+                  <Label>API Key</Label>
+                  <Input
+                    type="password"
+                    placeholder="API Key"
+                    value={credApiKey}
+                    onChange={(e) => setCredApiKey(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>API Secret</Label>
+                  <Input
+                    type="password"
+                    placeholder="API Secret"
+                    value={credApiSecret}
+                    onChange={(e) => setCredApiSecret(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <Button type="submit" variant="primary">Save</Button>
+                  <Button type="button" variant="danger" onClick={handleDeleteCredentials}>Delete</Button>
+                </div>
+              </form>
+            </Card>
           </div>
-        )}
-
-        {stream?.positions?.length > 0 && (
-          <div>
-            <div className="text-sm font-medium text-slate-300 mb-1">Positions</div>
-            <DataTable
-              columns={[
-                { label: 'Symbol', key: 'symbol' },
-                { label: 'Amt', key: 'positionAmt', align: 'right', render: (r: any) => fmtNumber(r.positionAmt, 4) },
-                { label: 'Entry', key: 'entryPrice', align: 'right', render: (r: any) => fmtUsd(r.entryPrice) },
-                { label: 'UPnL', key: 'unrealizedProfit', align: 'right', render: (r: any) => fmtUsd(r.unrealizedProfit) }
-              ]}
-              rows={stream.positions}
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">User Stream Orders</h3>
-        <DataTable
-          columns={[
-            { label: 'Symbol', key: 'symbol' },
-            { label: 'Side', key: 'side' },
-            { label: 'Status', key: 'orderStatus' },
-            { label: 'Filled', key: 'filledQuantity', align: 'right', render: (r: any) => fmtNumber(r.filledQuantity, 4) },
-            { label: 'Avg Price', key: 'averagePrice', align: 'right', render: (r: any) => fmtUsd(r.averagePrice) }
-          ]}
-          rows={streamOrders}
-          emptyText="No stream orders"
-        />
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">User Stream Account Events</h3>
-        <DataTable
-          columns={[
-            { label: 'Event Time', key: 'eventTime', render: (r: any) => fmtDateTime(r.eventTime) },
-            { label: 'Type', key: 'eventType' },
-            { label: 'Assets', key: 'balances', render: (r: any) => String(r.balances?.length || 0) }
-          ]}
-          rows={streamAccounts}
-          emptyText="No stream account events"
-        />
-      </div>
-    </div>
-  )
-}
-
-function InfoItem({ label, value, badgeClass }: { label: string; value: string; badgeClass?: string }) {
-  return (
-    <div className="bg-slate-950 border border-slate-800 rounded p-2">
-      <div className="text-xs text-slate-400">{label}</div>
-      {badgeClass ? (
-        <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs ${badgeClass}`}>{value}</span>
-      ) : (
-        <div className="text-slate-100 font-medium">{value}</div>
-      )}
+        </TabPanel>
+      </Tabs>
     </div>
   )
 }

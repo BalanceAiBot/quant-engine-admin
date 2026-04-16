@@ -1,14 +1,20 @@
 import { useState } from 'react'
 import { apiGet, apiPost } from '../lib/api'
 import { usePolling } from '../hooks/usePolling'
-import { DataTable } from '../components/DataTable'
+import { Card, CardHeader } from '../components/ui/Card'
+import { DataTable } from '../components/composite/DataTable'
+import { PageHeader } from '../components/composite/PageHeader'
+import { Tabs, TabPanel } from '../components/ui/Tabs'
+import { Button } from '../components/ui/Button'
+import { Badge } from '../components/ui/Badge'
 import { showToast } from '../components/ToastContainer'
-import { fmtUsd, fmtBps, fmtPct, badgeClass } from '../lib/utils'
+import { fmtUsd, fmtBps, fmtPct } from '../lib/utils'
 
 export function MarketsPage() {
   const [runtime, setRuntime] = useState<any>(null)
   const [universe, setUniverse] = useState<any>(null)
   const [features, setFeatures] = useState<any[]>([])
+  const [activeTab, setActiveTab] = useState('runtime')
 
   usePolling(async () => {
     const [rRes, uRes, fRes] = await Promise.all([
@@ -43,60 +49,90 @@ export function MarketsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Markets</h2>
+      <PageHeader
+        title="Markets"
+        description="Market runtime, universe, and feature snapshots"
+      />
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-slate-300">Market Runtime</h3>
-          <span className={`px-2 py-0.5 rounded text-xs ${badgeClass(status.state)}`}>{status.state}</span>
-        </div>
-        <div className="flex items-center gap-2 mb-3">
-          <button onClick={handleStart} className="px-3 py-1.5 rounded text-sm bg-emerald-600 hover:bg-emerald-500 text-white">Start</button>
-          <button onClick={handleStop} className="px-3 py-1.5 rounded text-sm bg-rose-600 hover:bg-rose-500 text-white">Stop</button>
-        </div>
-        <div className="text-xs text-slate-400 mb-2">Connections ({status.connections?.length || 0})</div>
-        {status.connections?.length > 0 && (
-          <div className="space-y-2">
-            {status.connections.map((c: any) => (
-              <div key={c.connectionId} className="flex items-center justify-between text-sm border-b border-slate-800 pb-1">
-                <span className="text-slate-300">{c.connectionId} • {c.instrumentKind}</span>
-                <span className={`text-xs px-2 py-0.5 rounded ${badgeClass(c.state)}`}>{c.state}</span>
+      <Tabs
+        tabs={[
+          { id: 'runtime', label: 'Runtime' },
+          { id: 'universe', label: 'Universe', badge: universe?.pairs?.length || 0 },
+          { id: 'features', label: 'Features', badge: features.length || 0 },
+        ]}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+      >
+        <TabPanel id="runtime" activeId={activeTab}>
+          <Card>
+            <CardHeader
+              title="Market Runtime"
+              action={
+                <div className="flex items-center gap-2">
+                  <Badge variant={status.state} dot>{status.state}</Badge>
+                  <Button variant="primary" size="sm" onClick={handleStart}>Start</Button>
+                  <Button variant="danger" size="sm" onClick={handleStop}>Stop</Button>
+                </div>
+              }
+            />
+            <div className="mb-2 text-sm text-slate-400">
+              Connections: <span className="font-medium text-slate-200">{status.connections?.length || 0}</span>
+            </div>
+            {status.connections?.length > 0 && (
+              <div className="space-y-2">
+                {status.connections.map((c: any) => (
+                  <div
+                    key={c.connectionId}
+                    className="flex items-center justify-between rounded-lg border border-surface-border bg-slate-950 px-4 py-3"
+                  >
+                    <span className="text-sm text-slate-300">{c.connectionId} • {c.instrumentKind}</span>
+                    <Badge variant={c.state}>{c.state}</Badge>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            )}
+          </Card>
+        </TabPanel>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">Universe</h3>
-        <div className="text-xs text-slate-400 mb-2">
-          Source: {universe?.source} • Pairs: {universe?.pairs?.length || 0} • Streams: {universe?.stats?.streamCount || 0}
-        </div>
-        <DataTable
-          columns={[
-            { label: 'Base', key: 'baseAsset' },
-            { label: 'Spot', key: 'spotSymbol' },
-            { label: 'Perp', key: 'perpetualSymbol' },
-            { label: 'Volume', key: 'combinedQuoteVolume', align: 'right', render: (r: any) => fmtUsd(r.combinedQuoteVolume) }
-          ]}
-          rows={universe?.pairs || []}
-        />
-      </div>
+        <TabPanel id="universe" activeId={activeTab}>
+          <Card>
+            <CardHeader
+              title="Universe"
+              subtitle={`Source: ${universe?.source || '-'} • Pairs: ${universe?.pairs?.length || 0} • Streams: ${universe?.stats?.streamCount || 0}`}
+            />
+            <DataTable
+              columns={[
+                { key: 'baseAsset', header: 'Base' },
+                { key: 'spotSymbol', header: 'Spot' },
+                { key: 'perpetualSymbol', header: 'Perp' },
+                { key: 'combinedQuoteVolume', header: 'Volume', align: 'right', render: (r: any) => fmtUsd(r.combinedQuoteVolume) }
+              ]}
+              rows={universe?.pairs || []}
+              density="compact"
+              emptyTitle="No universe pairs"
+            />
+          </Card>
+        </TabPanel>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">Features</h3>
-        <DataTable
-          columns={[
-            { label: 'Base', key: 'baseAsset' },
-            { label: 'Spot', key: 'spotLastPrice', align: 'right', render: (r) => fmtUsd(r.spotLastPrice) },
-            { label: 'Perp', key: 'perpetualLastPrice', align: 'right', render: (r) => fmtUsd(r.perpetualLastPrice) },
-            { label: 'Mark', key: 'markPrice', align: 'right', render: (r) => fmtUsd(r.markPrice) },
-            { label: 'Basis', key: 'basisBps', align: 'right', render: (r) => fmtBps(r.basisBps) },
-            { label: 'Funding', key: 'fundingRate', align: 'right', render: (r) => fmtPct(r.fundingRate) }
-          ]}
-          rows={features}
-        />
-      </div>
+        <TabPanel id="features" activeId={activeTab}>
+          <Card>
+            <CardHeader title="Features" />
+            <DataTable
+              columns={[
+                { key: 'baseAsset', header: 'Base' },
+                { key: 'spotLastPrice', header: 'Spot', align: 'right', render: (r: any) => fmtUsd(r.spotLastPrice) },
+                { key: 'perpetualLastPrice', header: 'Perp', align: 'right', render: (r: any) => fmtUsd(r.perpetualLastPrice) },
+                { key: 'markPrice', header: 'Mark', align: 'right', render: (r: any) => fmtUsd(r.markPrice) },
+                { key: 'basisBps', header: 'Basis', align: 'right', render: (r: any) => fmtBps(r.basisBps) },
+                { key: 'fundingRate', header: 'Funding', align: 'right', render: (r: any) => fmtPct(r.fundingRate) }
+              ]}
+              rows={features}
+              density="compact"
+              emptyTitle="No features"
+            />
+          </Card>
+        </TabPanel>
+      </Tabs>
     </div>
   )
 }

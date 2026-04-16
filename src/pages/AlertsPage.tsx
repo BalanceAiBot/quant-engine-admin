@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { apiGet, apiPost } from '../lib/api'
 import { usePolling } from '../hooks/usePolling'
-import { DataTable } from '../components/DataTable'
+import { Card, CardHeader } from '../components/ui/Card'
+import { DataTable } from '../components/composite/DataTable'
+import { PageHeader } from '../components/composite/PageHeader'
+import { Tabs, TabPanel } from '../components/ui/Tabs'
+import { Button } from '../components/ui/Button'
+import { Badge } from '../components/ui/Badge'
+import { Input, Select } from '../components/ui/Input'
 import { showToast } from '../components/ToastContainer'
-import { badgeClass, fmtDateTime } from '../lib/utils'
+import { fmtDateTime } from '../lib/utils'
 
 export function AlertsPage() {
   const [alerts, setAlerts] = useState<any[]>([])
@@ -11,6 +17,7 @@ export function AlertsPage() {
   const [schedulerStatus, setSchedulerStatus] = useState<any>(null)
   const [filter, setFilter] = useState<string>('')
   const [ackKey, setAckKey] = useState('')
+  const [activeTab, setActiveTab] = useState('alerts')
 
   usePolling(async () => {
     const [alRes, schRes] = await Promise.all([
@@ -71,83 +78,104 @@ export function AlertsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Alerts</h2>
+      <PageHeader
+        title="Alerts"
+        description="System alerts and scheduler management"
+      />
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm mb-4">
-        <div className="bg-slate-950 border border-slate-800 rounded p-3">
-          <div className="text-xs text-slate-400">Total</div>
-          <div className="text-slate-100 font-medium">{summary?.total ?? '-'}</div>
-        </div>
-        <div className="bg-slate-950 border border-slate-800 rounded p-3">
-          <div className="text-xs text-slate-400">Open</div>
-          <div className="text-rose-400 font-medium">{summary?.open ?? '-'}</div>
-        </div>
-        <div className="bg-slate-950 border border-slate-800 rounded p-3">
-          <div className="text-xs text-slate-400">Acknowledged</div>
-          <div className="text-amber-400 font-medium">{summary?.acknowledged ?? '-'}</div>
-        </div>
-        <div className="bg-slate-950 border border-slate-800 rounded p-3">
-          <div className="text-xs text-slate-400">Resolved</div>
-          <div className="text-emerald-400 font-medium">{summary?.resolved ?? '-'}</div>
-        </div>
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-slate-300">Alert Scheduler</h3>
-          <div className="flex items-center gap-2">
-            <span className={`px-2 py-0.5 rounded text-xs ${badgeClass(schedulerStatus?.state || 'stopped')}`}>
-              {schedulerStatus?.state || 'stopped'}
-            </span>
-            <button onClick={handleSchedulerStart} className="px-3 py-1.5 rounded text-xs bg-emerald-600 hover:bg-emerald-500 text-white">Start</button>
-            <button onClick={handleSchedulerTick} className="px-3 py-1.5 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white">Tick</button>
-            <button onClick={handleSchedulerStop} className="px-3 py-1.5 rounded text-xs bg-rose-600 hover:bg-rose-500 text-white">Stop</button>
+      <Tabs
+        tabs={[
+          { id: 'alerts', label: 'Alerts', badge: summary?.open || 0 },
+          { id: 'scheduler', label: 'Scheduler' },
+        ]}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+      >
+        <TabPanel id="alerts" activeId={activeTab}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <Card padding="compact">
+              <div className="text-xs text-slate-500">Total</div>
+              <div className="mt-1 text-lg font-semibold text-slate-100">{summary?.total ?? '-'}</div>
+            </Card>
+            <Card padding="compact">
+              <div className="text-xs text-slate-500">Open</div>
+              <div className="mt-1 text-lg font-semibold text-rose-400">{summary?.open ?? '-'}</div>
+            </Card>
+            <Card padding="compact">
+              <div className="text-xs text-slate-500">Acknowledged</div>
+              <div className="mt-1 text-lg font-semibold text-amber-400">{summary?.acknowledged ?? '-'}</div>
+            </Card>
+            <Card padding="compact">
+              <div className="text-xs text-slate-500">Resolved</div>
+              <div className="mt-1 text-lg font-semibold text-emerald-400">{summary?.resolved ?? '-'}</div>
+            </Card>
           </div>
-        </div>
-        <div className="text-xs text-slate-400">
-          Tick Count: {schedulerStatus?.tickCount ?? 0}
-        </div>
-      </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-slate-300">Alerts</h3>
-          <div className="flex items-center gap-2">
-            <select
-              className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              <option value="">All</option>
-              <option value="open">Open</option>
-              <option value="acknowledged">Acknowledged</option>
-              <option value="resolved">Resolved</option>
-            </select>
-            <button onClick={handleScan} className="px-3 py-1.5 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white">Scan</button>
-          </div>
-        </div>
-        <DataTable
-          columns={[
-            { label: 'Key', key: 'alertKey' },
-            { label: 'Scope', key: 'scope' },
-            { label: 'Severity', key: 'severity', render: (r) => <span className={`px-2 py-0.5 rounded text-xs ${badgeClass(r.severity)}`}>{r.severity}</span> },
-            { label: 'Status', key: 'status', render: (r) => <span className={r.status === 'open' ? 'text-rose-400' : r.status === 'acknowledged' ? 'text-amber-400' : 'text-emerald-400'}>{r.status}</span> },
-            { label: 'Message', key: 'message' },
-            { label: 'Created', key: 'createdAt', render: (r) => fmtDateTime(r.createdAt) }
-          ]}
-          rows={alerts}
-          emptyText="No alerts"
-        />
-        <form onSubmit={handleAcknowledge} className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-          <input
-            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-100"
-            placeholder="Alert key to acknowledge"
-            value={ackKey}
-            onChange={(e) => setAckKey(e.target.value)}
-          />
-          <button type="submit" className="px-3 py-2 rounded text-sm bg-emerald-600 hover:bg-emerald-500 text-white">Acknowledge</button>
-        </form>
-      </div>
+          <Card>
+            <CardHeader
+              title="Alerts"
+              action={
+                <div className="flex items-center gap-2">
+                  <Select value={filter} onChange={(e) => setFilter(e.target.value)}>
+                    <option value="">All</option>
+                    <option value="open">Open</option>
+                    <option value="acknowledged">Acknowledged</option>
+                    <option value="resolved">Resolved</option>
+                  </Select>
+                  <Button variant="secondary" size="sm" onClick={handleScan}>Scan</Button>
+                </div>
+              }
+            />
+            <DataTable
+              columns={[
+                { key: 'alertKey', header: 'Key' },
+                { key: 'scope', header: 'Scope' },
+                { key: 'severity', header: 'Severity', render: (r: any) => <Badge variant={r.severity}>{r.severity}</Badge> },
+                { key: 'status', header: 'Status', render: (r: any) => (
+                  <span className={r.status === 'open' ? 'text-rose-400' : r.status === 'acknowledged' ? 'text-amber-400' : 'text-emerald-400'}>{r.status}</span>
+                )},
+                { key: 'message', header: 'Message' },
+                { key: 'createdAt', header: 'Created', render: (r: any) => fmtDateTime(r.createdAt) }
+              ]}
+              rows={alerts}
+              density="compact"
+              emptyTitle="No alerts"
+            />
+            <form onSubmit={handleAcknowledge} className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <Input
+                placeholder="Alert key to acknowledge"
+                value={ackKey}
+                onChange={(e) => setAckKey(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="submit" variant="primary">Acknowledge</Button>
+            </form>
+          </Card>
+        </TabPanel>
+
+        <TabPanel id="scheduler" activeId={activeTab}>
+          <Card>
+            <CardHeader
+              title="Alert Scheduler"
+              action={
+                <div className="flex items-center gap-2">
+                  <Badge variant={schedulerStatus?.state === 'running' ? 'success' : 'default'} dot>
+                    {schedulerStatus?.state || 'stopped'}
+                  </Badge>
+                </div>
+              }
+            />
+            <div className="mb-4 text-sm text-slate-400">
+              Tick Count: <span className="font-medium text-slate-200">{schedulerStatus?.tickCount ?? 0}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="primary" size="sm" onClick={handleSchedulerStart}>Start</Button>
+              <Button variant="secondary" size="sm" onClick={handleSchedulerTick}>Tick</Button>
+              <Button variant="danger" size="sm" onClick={handleSchedulerStop}>Stop</Button>
+            </div>
+          </Card>
+        </TabPanel>
+      </Tabs>
     </div>
   )
 }

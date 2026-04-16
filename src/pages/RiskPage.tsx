@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { apiGet, apiPost } from '../lib/api'
 import { usePolling } from '../hooks/usePolling'
-import { DataTable } from '../components/DataTable'
+import { Card, CardHeader } from '../components/ui/Card'
+import { DataTable } from '../components/composite/DataTable'
+import { PageHeader } from '../components/composite/PageHeader'
+import { Button } from '../components/ui/Button'
+import { Badge } from '../components/ui/Badge'
 import { showToast } from '../components/ToastContainer'
-import { badgeClass } from '../lib/utils'
 
 export function RiskPage() {
   const [protections, setProtections] = useState<any[]>([])
@@ -29,67 +32,61 @@ export function RiskPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Risk</h2>
+      <PageHeader
+        title="Risk"
+        description="Protections and exchange execution health"
+      />
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">Protections</h3>
-        <DataTable
-          columns={[
-            { label: 'Protection', key: 'protectionId' },
-            {
-              label: 'Enabled',
-              key: 'enabled',
-              render: (r) => (
-                <span className={r.enabled ? 'text-emerald-400' : 'text-rose-400'}>
-                  {r.enabled ? 'Yes' : 'No'}
-                </span>
-              )
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="Protections" />
+          <DataTable
+            columns={[
+              { key: 'protectionId', header: 'Protection' },
+              {
+                key: 'enabled',
+                header: 'Enabled',
+                render: (r: any) => (
+                  <Badge variant={r.enabled ? 'success' : 'danger'} dot>
+                    {r.enabled ? 'Yes' : 'No'}
+                  </Badge>
+                )
+              }
+            ]}
+            rows={protections}
+            density="compact"
+            emptyTitle="No protections"
+          />
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Exchange Execution Health"
+            action={
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="xs" onClick={() => handleReset('binance-testnet')}>Reset Testnet</Button>
+                <Button variant="secondary" size="xs" onClick={() => handleReset('binance-live')}>Reset Live</Button>
+                <Button variant="primary" size="xs" onClick={() => handleReset()}>Reset All</Button>
+              </div>
             }
-          ]}
-          rows={protections}
-        />
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-slate-300">Exchange Execution Health</h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleReset('binance-testnet')}
-              className="px-3 py-1.5 rounded text-xs bg-slate-700 hover:bg-slate-600 text-white"
-            >
-              Reset Testnet
-            </button>
-            <button
-              onClick={() => handleReset('binance-live')}
-              className="px-3 py-1.5 rounded text-xs bg-slate-700 hover:bg-slate-600 text-white"
-            >
-              Reset Live
-            </button>
-            <button
-              onClick={() => handleReset()}
-              className="px-3 py-1.5 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white"
-            >
-              Reset All
-            </button>
-          </div>
-        </div>
-        <DataTable
-          columns={[
-            { label: 'Venue', key: 'executionVenue' },
-            {
-              label: 'State',
-              key: 'state',
-              render: (r) => (
-                <span className={`px-2 py-0.5 rounded text-xs ${badgeClass(r.state)}`}>{r.state}</span>
-              )
-            },
-            { label: 'Category', key: 'category' },
-            { label: 'Reason', key: 'reason' },
-            { label: 'Failures', key: 'consecutiveRetryableFailures', align: 'right' }
-          ]}
-          rows={health}
-        />
+          />
+          <DataTable
+            columns={[
+              { key: 'executionVenue', header: 'Venue' },
+              {
+                key: 'state',
+                header: 'State',
+                render: (r: any) => <Badge variant={r.state}>{r.state}</Badge>
+              },
+              { key: 'category', header: 'Category' },
+              { key: 'reason', header: 'Reason' },
+              { key: 'consecutiveRetryableFailures', header: 'Failures', align: 'right' }
+            ]}
+            rows={health}
+            density="compact"
+            emptyTitle="No health records"
+          />
+        </Card>
       </div>
     </div>
   )
